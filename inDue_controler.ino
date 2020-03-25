@@ -8,13 +8,13 @@
 /**
    硬件引脚
 */
-#define GEST_RX 19 //JY61 PIN-TX & DUE PIN-RX   Serial1
-#define GEST_TX 18 //JY61 PIN-RX & DUE PIN-TX   Serial1
 #define BT_A 35
 #define BT_B 37
 #define BT_C 39
-#define BLUE_RX = 17 //BLE PIN-TX & DUE PIN-RX   Serial2
-#define BLUE_TX = 16 //BLE PIN-RX & DUE PIN-TX   Serial2
+#define BLUE_RX = 19 //BLE PIN-TX & DUE PIN-RX   Serial1
+#define BLUE_TX = 18 //BLE PIN-RX & DUE PIN-TX   Serial1
+#define GEST_RX 17 //JY61 PIN-TX & DUE PIN-RX   Serial2
+#define GEST_TX 16 //JY61 PIN-RX & DUE PIN-TX   Serial2
 
 
 /**
