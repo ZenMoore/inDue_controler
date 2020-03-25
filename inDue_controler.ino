@@ -52,6 +52,13 @@ void initial() {
     sign = 0;
 }
 
+//将trans_union清空
+void initialize_union(){
+	for(int i=0; i<6*400; i++){
+		trans_union.fl[i] = 0.0;
+	}
+}
+
 // 返回哪个按钮被按下
 char get_button() {
     if (digitalRead(BT_A) == HIGH) {
@@ -127,6 +134,7 @@ bool send_data(transform &data,int dimension){
 //把angle写到trans_union里
 //接受angle数组和trans_union作为参数，angle数组中的数据复制到trans_union里准备发送
 bool data_to_union_3(union transform &trans_union, float angle[3]){
+	initialize_union(trans_union);//可能并无必要，因为trans_union的单元可能存着原来的数据，比如用angles覆盖data时候，有一部分没有覆盖
     for(int i=0; i<3; i++){
         trans_union.fl[i]= angle[i];
     }
@@ -178,12 +186,7 @@ void setup() {
 //todo：新增函数，注意要提前write一个A进去
 //发送字符'A'和angles数组到蓝牙
 bool send_A_to_ble() {
-    if(data_to_union_3(trans_union, angle)){
-        send_data(trans_union,3);
-        return true;
-    }
-    else
-        return false;
+    return send_data(trans_union,3);
 }
 
 
@@ -226,6 +229,7 @@ bool a_tuple() {
 //把data写到trans_union里
 //接受data数组和trans_union作为参数，将data数组中的数据复制到trans_union里准备发送
 bool data_to_union_6(union transform &trans_union, float data[6][400]){
+	initialize_union(trans_union); //可能并无必要，因为trans_union的单元可能存着原来的数据，比如用angles覆盖data时候，有一部分没有覆盖
     for(int i=0; i<6; i++){
         for(int j=0; j<400; j++){
             trans_union.fl[i*400+j] = data[i][j];
@@ -281,42 +285,41 @@ void detect_and_store() {
 //发送字符'B'和data数组到蓝牙
 //todo 这个需要着重处理一下，保证一个函数发完全部数据，即分批次发，发完跳出这个while循环
 bool send_B_to_ble() {
-    while(true){
-        if (state=='B'){
-            Serial1.write((char)fois);
-            if (send_B_to_ble()) {
-                Serial.print("B_to_BLE succeeds. Batch number:");
-                Serial.println(fois);
-                fois++;//todo：借此实现在下一个loop中发送下一批
-            } else {
-                Serial.print("B_to_BLE  failed. Batch number:");
-                Serial.println(fois);
-            }
-            if(fois == 400*6/DATA_SIZE+1){//todo：这里注意要+1因为最后一批发完fois被++了
-                state = 'P';
-                fois = 0;
-            }//todo：最后一次要把fois归零，state重新设置为P（普通）
-            initial();
-        }
-    }
-
-    if(data_to_union_6(trans_union,data)){
-        send_data(trans_union, 6);
-        return true;
-    }
-    else
-        return false;
+    return send_data(trans_union, 6);
 }
+
+//B功能的操作控制手柄
+bool run_B_handler(){
+	bool is_successful = true;
+
+    while(state=='B'){//注意，数据的发送是在放开B按钮之后进行的
+    	Serial1.write('B');
+        Serial1.write((char)fois);
+        if (send_B_to_ble()) {
+            Serial.print("B_to_BLE succeeds. Batch number:");
+            Serial.println(fois);
+            fois++;//todo：借此实现在下一个loop中发送下一批
+            delay(500);//todo 在此行暂停下程序，等待zens_host处理完一个buf
+        } else {
+        	is_successful = false;
+            Serial.print("B_to_BLE  failed. Batch number:");
+            Serial.println(fois);
+        }
+        if(fois == 400*6/DATA_SIZE+1){//todo：这里注意要+1因为最后一批发完fois被++了
+            state = 'P';
+            fois = 0;
+            Serial.write('T');//表示data的各批次都传完了
+        }//最后一次要把fois归零，state重新设置为P
+    }
+    return is_successful;
+}
+
 
 /**
   平时状态系列函数
 */
 bool send_angles_to_ble(transform &trans_union, float angle[3]){
-    if(data_to_union_3(trans_union, angle)){
-        send_data(trans_union, 3);
-        return true;
-    } else
-        return false;
+	return send_data(trans_union, 3);
 }
 
 
@@ -337,10 +340,11 @@ void loop() {
             state = 'A';
             detect();
             Serial1.write('A');
-            if (send_A_to_ble()) {
-                Serial.println("A_to_BLE succeeds.");
-            } else {
-                Serial.println("A_to_BLE failed.");
+            if(data_to_union_3(trans_union, angle)){
+            	send_A_to_ble()
+            	Serial.println("A_to_BLE succeeds.");
+            }else{
+            	Serial.println("A_to_BLE failed.");
             }
             break;
 
@@ -348,18 +352,23 @@ void loop() {
             //todo：修改分支，把发送数据和initial的任务放到后边，其他没变
             Serial.println("Button B gotten.");
             state = 'B';
-            Serial1.write('B');// todo 此处zenhost应该挂起程序等待数据传送
             // //todo 这里sendh删掉，换成下面的serial1.write('b'),不然要在每个batch里都发个h，并且修改cpp文件
             // if (send_H()) {
             //     Serial.println("H sent.");
             // } else {
             //     Serial.println("H sending failed.");
             // }
-            detect_and_store();
-            if(send_B_to_ble()){
-                Serial.println("B sent.");
+            detect_and_store(); // todo 此时zens_host收不到任何数据，应执行默认默认'P'情形
+            if(data_to_union_6(trans_union,data)){//转码只需一次就好，即一次将data的全部数据转码，之后无需重复转码
+           		 // Serial1.write('B');//在handler中用这个操作控制批次接收的重启 	
+           		 if(run_B_handler()){//B的发送通过这个操作柄循环控制
+           		 	Serial.println("B sent.");	
+           		 }else{
+           		 	Serial.println("B sending failed.");	
+           		 }
+           		 
             }else{
-                Serial.println("B sending failed.")
+            	Serial.println("B-Data transcoding failed.");
             }
             break;
 
@@ -375,9 +384,10 @@ void loop() {
         default:
             Serial.println("No Button.");
             state = 'P';
-            Serial1.write('P');
-            detect();
-            if (send_angles_to_ble(trans_union,angle)) {
+            detect();// todo 此时若zens_host收不到任何数据，应执行默认默认'P'情形
+            if(data_to_union_3(trans_union, angle)){
+            	Serial1.write('P');
+            	send_angles_to_ble(trans_union,angle)
                 Serial.println("Angle to BLE succeeds.");
             } else {
                 Serial.println("Angle to BLE failed.");
