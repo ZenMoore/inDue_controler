@@ -53,7 +53,7 @@ void initial() {
 }
 
 //将trans_union清空
-void initialize_union(){
+void initialize_union(union transform &trans_union){
 	for(int i=0; i<6*400; i++){
 		trans_union.fl[i] = 0.0;
 	}
@@ -128,6 +128,10 @@ bool send_data(transform &data,int dimension){
             Serial1.write(data.ch[fois*DATA_SIZE+k]);
         }
     }//以char格式发送数据
+    Serial.println(data.fl[0]);
+    Serial.println(data.fl[2]);
+    Serial.println(data.fl[3]);
+    delay(1000);//等待蓝牙发送数据
     return true;
 }
 
@@ -341,7 +345,7 @@ void loop() {
             detect();
             Serial1.write('A');
             if(data_to_union_3(trans_union, angle)){
-            	send_A_to_ble()
+            	send_A_to_ble();
             	Serial.println("A_to_BLE succeeds.");
             }else{
             	Serial.println("A_to_BLE failed.");
@@ -387,8 +391,8 @@ void loop() {
             detect();// todo 此时若zens_host收不到任何数据，应执行默认默认'P'情形
             if(data_to_union_3(trans_union, angle)){
             	Serial1.write('P');
-            	send_angles_to_ble(trans_union,angle)
-                Serial.println("Angle to BLE succeeds.");
+            	send_angles_to_ble(trans_union,angle);
+              Serial.println("Angle to BLE succeeds.");
             } else {
                 Serial.println("Angle to BLE failed.");
             }
