@@ -29,12 +29,16 @@ float angle[3] = {0};
 unsigned char Re_buf[11], counter = 0; //存储从JY61读到的数据包，counter指示读到数据包的第几位
 unsigned char sign = 0; //表示信号时刻，即data存储到了第几行
 //这里可以把datasize改为240来提高速度
-const int DATA_SIZE = 40;//通过蓝牙单次发送的最大字节数
+const int DATA_SIZE = sizeof(float)*40;//通过蓝牙单次发送的最大字节数
 //这里是用于transform的union，union的size设置为足够大，实例化一个trans_union，全程用它来转换，不管是三轴还是六轴数据
 union transform{
     char ch[6*400*sizeof(float)];
     float fl[6*400];
 }trans_union;//用于待发送数据的格式转换
+union{
+  char fch[sizeof(int)];
+  int fint;
+}fois_tr;
 //这里用于标注在loop间发送六轴数据的批数，每次发完+1
 int fois = 0;//用于标注发送数据批数
 
@@ -120,17 +124,17 @@ void calibrate() {
 //发送数据到蓝牙,@dimension为待发送数据维数
 bool send_data(transform &data,int dimension){
     if(dimension==3){
-        for(int i=0; i< 12;i++)
-            Serial1.write(data.ch[i]);
+        for(int i=0; i< 12;i++){
+             Serial1.write(data.ch[i]);
+        }
+        
     } //以char格式发送数据
     if(dimension==6){
         for(int k = 0; k<DATA_SIZE; k++){
             Serial1.write(data.ch[fois*DATA_SIZE+k]);
         }
     }//以char格式发送数据
-    Serial.println(data.fl[0]);
-    Serial.println(data.fl[2]);
-    Serial.println(data.fl[3]);
+    
     delay(1000);//等待蓝牙发送数据
     return true;
 }
@@ -244,7 +248,7 @@ bool data_to_union_6(union transform &trans_union, float data[6][400]){
 
 // 检测并读取JY61的数据，将读取到的数据存储在data数组当中
 void detect_and_store() {
-    while (digitalRead(BT_A) == HIGH) {
+    while (digitalRead(BT_B) == HIGH) {
         if (Serial2.available()) {
             Re_buf[counter] = (unsigned char)Serial2.read();
             if (counter == 0 && Re_buf[0] != 0x55) continue; //第0号数据不是帧头
@@ -297,23 +301,29 @@ bool run_B_handler(){
 	bool is_successful = true;
 
     while(state=='B'){//注意，数据的发送是在放开B按钮之后进行的
-    	Serial1.write('B');
-        Serial1.write((char)fois);
-        if (send_B_to_ble()) {
-            Serial.print("B_to_BLE succeeds. Batch number:");
-            Serial.println(fois);
-            fois++;//todo：借此实现在下一个loop中发送下一批
-            delay(500);//todo 在此行暂停下程序，等待zens_host处理完一个buf
-        } else {
-        	is_successful = false;
-            Serial.print("B_to_BLE  failed. Batch number:");
-            Serial.println(fois);
-        }
-        if(fois == 400*6/DATA_SIZE+1){//todo：这里注意要+1因为最后一批发完fois被++了
-            state = 'P';
-            fois = 0;
-            Serial.write('T');//表示data的各批次都传完了
-        }//最后一次要把fois归零，state重新设置为P
+  	  Serial1.write('B');
+     fois_tr.fint = fois;
+      for(int i=0;i<sizeof(int);i++){
+        Serial1.write(fois_tr.fch[i]);  
+      }
+      
+      if (send_B_to_ble()) {
+          Serial.print("B_to_BLE succeeds. Batch number:");
+          Serial.println(fois);
+          fois++;//todo：借此实现在下一个loop中发送下一批
+      } else {
+      	is_successful = false;
+          Serial.print("B_to_BLE  failed. Batch number:");
+          Serial.println(fois);
+      }
+      if(fois == 400*6/DATA_SIZE+1){//todo：这里注意要+1因为最后一批发完fois被++了
+          state = 'P';
+          fois = 0;
+          delay(4000);//如果T莫名消失，那么原因是：这个延时不够，T附到了前一个buf的最后
+          Serial1.write('T');//表示data的各批次都传完了
+          delay(1000);
+      }//最后一次要把fois归零，state重新设置为P
+      delay(1000);//todo 在此行暂停下程序，等待zens_host处理完一个buf
     }
     return is_successful;
 }
@@ -378,6 +388,7 @@ void loop() {
 
         case 'C':
             Serial.println("Button C gotten.");
+            delay(1000);
             state = 'C';
             Serial1.write('C');
             Serial.println("C sent.");
