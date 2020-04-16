@@ -13,11 +13,12 @@
 #define BT_A 35
 #define BT_B 37
 #define BT_C 39
+#define BT_D 47
 #define BLUE_RX 19 //BLE PIN-TX & DUE PIN-RX   Serial1
 #define BLUE_TX 18 //BLE PIN-RX & DUE PIN-TX   Serial1
 #define GEST_RX 17 //JY61 PIN-TX & DUE PIN-RX   Serial2
 #define GEST_TX 16 //JY61 PIN-RX & DUE PIN-TX   Serial2
-#define DATA_SIZE 4*36
+#define DATA_SIZE (4*240)
 /**
    数据变量
 */
@@ -133,10 +134,10 @@ bool send_data(transform &data, int dimension) {
   } //以char格式发送数据
   if (dimension == 6) {
     for (int k = 0; k < DATA_SIZE; k++) {
-      Serial1.write(data.ch[fois * DATA_SIZE + k]);
+      Serial1.write(data.ch[k]);
     }
   }//以char格式发送数据
-  delay(1000);//等待蓝牙发送数据
+  delay(1000);// todo 通过这个来加速
   return true;
 }
 
@@ -185,6 +186,7 @@ void setup() {
   pinMode(BT_A, INPUT);
   pinMode(BT_B, INPUT);
   pinMode(BT_C, INPUT);
+  pinMode(BT_D, INPUT);
 }
 
 
@@ -275,6 +277,7 @@ void detect_and_store() {
                       return;
                   }
               }
+/*
 //              cter = 0;
 //              for (int i = 0; i < 6; i++) {
 //                if (data[i][sign] == 0) {
@@ -290,6 +293,7 @@ void detect_and_store() {
 //                  return;
 //                }
 //              }
+*/
               break;
             case 0x53:
               data[3][sign] = (short(Re_buf [3] << 8 | Re_buf [2])) / 32768.0 * 180;
@@ -301,6 +305,7 @@ void detect_and_store() {
                   return;
                 }
               }
+/*
 //              cter = 0;
 //              for (int i = 0; i < 6; i++) {
 //                if (data[i][sign] == 0) {
@@ -316,21 +321,31 @@ void detect_and_store() {
 //                  return;
 //                }
 //              }
+*/
               break;
           }
         }
       }
     }
   }
-//  for(int j = 0; j<400; j++){
-//    Serial.print(data[0][j]); Serial.print(" "); Serial.print(data[1][j]); Serial.print(" "); Serial.print(data[2][j]); Serial.print(" "); Serial.print(data[3][j]); Serial.print(" "); Serial.print(data[4][j]); Serial.print(" "); Serial.println(data[5][j]);
-//  }
+  //mark
+  Serial.println(sign);
+  for(int j = 0; j<400; j++){
+    Serial.print(data[0][j]); Serial.print(" "); Serial.print(data[1][j]); Serial.print(" "); Serial.print(data[2][j]); Serial.print(" "); Serial.print(data[3][j]); Serial.print(" "); Serial.print(data[4][j]); Serial.print(" "); Serial.println(data[5][j]);
+  }
 }
 
 //新增函数，注意这里只管发送数据，发送B的任务在loop函数里单独实现
 //发送字符'B'和data数组到蓝牙
 //todo 这个需要着重处理一下，保证一个函数发完全部数据，即分批次发，发完跳出这个while循环
 bool send_B_to_ble() {
+//  if(fois == 18){
+//    for(int i = 0; i<36*4; i++){
+//      Serial1.write(char(i));
+//    }
+//    delay(1000);
+//    return true;
+//  }
   return send_data(trans_union, 6);
 }
 
@@ -340,9 +355,16 @@ bool run_B_handler() {
   
   while (state == 'B') { //注意，数据的发送是在放开B按钮之后进行的
     Serial1.write('B');
-    Serial1.write(char(fois));
+//    if(fois==18){//因为不知道为什么每次传到18就出错，而且是"18"这个数字本身有问题，所以这是传去100，发现数据内容不变，但是不会出现问题了..
+//      Serial1.write(char(int(100)));
+//    }else{
+//      Serial1.write(char(fois));  
+//    }
+    Serial1.write(char(fois));  
     data_to_union_6(trans_union, data);
-
+//    for(int i = 0;i<DATA_SIZE/sizeof(float); i++){
+//      Serial.println(trans_union.fl[i]);
+//    }
     // for (int k = 0; k < DATA_SIZE; k++) {
     //   Serial1.write(trans_union.ch[fois * DATA_SIZE + k]);
     // }
@@ -357,9 +379,6 @@ bool run_B_handler() {
      Serial.print("B_to_BLE  failed. Batch number:");
      Serial.println(fois);
    }
-//    if(fois%17==1){
-//      delay(2000);
-//    }
     if (fois == 4 * 400 * 6 / DATA_SIZE + 1) { //todo：这里注意要+1因为最后一批发完fois被++了
       state = 'P';
       fois = 0;
@@ -368,7 +387,7 @@ bool run_B_handler() {
       Serial1.write('T');//表示data的各批次都传完了
       delay(1000);
     }//最后一次要把fois归零，state重新设置为P
-     delay(1000);//todo 在此行暂停下程序，等待zens_host处理完一个buf
+     delay(100);//todo 在此行暂停下程序，等待zens_host处理完一个buf
   }
   return is_successful;
 }
