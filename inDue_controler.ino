@@ -28,7 +28,7 @@ char state = 'P'; //当前指令状态：A, B,C, P?
 float data[6][400];
 float angle[36] = {0};//一次记录36个发送
 unsigned char Re_buf[11], counter = 0; //存储从JY61读到的数据包，counter指示读到数据包的第几位
-unsigned char sign = 0; //表示信号时刻，即data存储到了第几行
+unsigned int sign = 0; //表示信号时刻，即data存储到了第几行
 //这里可以把datasize改为240来提高速度
  //通过蓝牙单次发送的最大字节数
 //这里是用于transform的union，union的size设置为足够大，实例化一个trans_union，全程用它来转换，不管是三轴还是六轴数据
@@ -39,7 +39,6 @@ union transform {
 
 //这里用于标注在loop间发送六轴数据的批数，每次发完+1
 int fois = 0;//用于标注发送数据批数
-
 
 /**
    通用函数
@@ -328,11 +327,9 @@ void detect_and_store() {
       }
     }
   }
-  //mark
-  Serial.println(sign);
-  for(int j = 0; j<400; j++){
-    Serial.print(data[0][j]); Serial.print(" "); Serial.print(data[1][j]); Serial.print(" "); Serial.print(data[2][j]); Serial.print(" "); Serial.print(data[3][j]); Serial.print(" "); Serial.print(data[4][j]); Serial.print(" "); Serial.println(data[5][j]);
-  }
+//  for(int j = 0; j<400; j++){
+//    Serial.print(data[0][j]); Serial.print(" "); Serial.print(data[1][j]); Serial.print(" "); Serial.print(data[2][j]); Serial.print(" "); Serial.print(data[3][j]); Serial.print(" "); Serial.print(data[4][j]); Serial.print(" "); Serial.println(data[5][j]);
+//  }
 }
 
 //新增函数，注意这里只管发送数据，发送B的任务在loop函数里单独实现
