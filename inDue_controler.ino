@@ -91,7 +91,7 @@ void detect() {
           angle[batch * 3 + 2] = (short(Re_buf[7] << 8 | Re_buf[6])) / 32768.0 * 180;
           //                    break;
           batch++;
-          if (batch == 11) {
+          if (batch == 12) {
             break;
           }
         }
@@ -253,6 +253,7 @@ bool data_to_union_6(union transform &trans_union, float data[6][400]) {
 
 // 检测并读取JY61的数据，将读取到的数据存储在data数组当中
 void detect_and_store() {
+  initial();
   while (digitalRead(BT_B) == HIGH) {
     if (Serial2.available()) {
       Re_buf[counter] = (unsigned char)Serial2.read();
